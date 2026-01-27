@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>My Mobile Code Editor</title>
+<style>
+body{margin:0;font-family:sans-serif;background:#111;color:#fff}
+header{padding:10px;background:#1e1e1e;text-align:center}
+button{background:#444;color:#fff;border:none;padding:6px 10px;border-radius:5px;margin:4px 0}
+input,textarea{width:100%;background:#222;color:#fff;border:1px solid #333;padding:6px;margin:4px 0}
+.folder,.file{padding:6px;border-bottom:1px solid #333}
+.menu{float:right;cursor:pointer}
+.hidden{display:none}
+</style>
+</head>
+<body>
+
+<header>📁 My Code Editor</header>
+
+<div id="home">
+  <input id="folderName" placeholder="ชื่อโฟลเดอร์">
+  <textarea id="folderDesc" placeholder="รายละเอียด"></textarea>
+  <button onclick="createFolder()">สร้างโฟลเดอร์</button>
+  <div id="folders"></div>
+</div>
+
+<div id="editor" class="hidden">
+  <button onclick="back()">⬅ กลับ</button>
+  <input id="search" placeholder="🔍 ค้นหาโค้ด">
+  <button onclick="findText()">ค้นหา</button>
+  <textarea id="code" rows="16"></textarea>
+  <button onclick="saveFile()">💾 เซฟไฟล์</button>
+</div>
+
+<div id="viewer" class="hidden">
+  <button onclick="back()">⬅ กลับ</button>
+  <iframe id="frame" style="width:100%;height:80vh;border:none"></iframe>
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("myEditorData")) || {};
+let currentFolder = "";
+let currentFile = "";
+
+function saveStorage(){
+  localStorage.setItem("myEditorData", JSON.stringify(data));
+}
+
+function createFolder(){
+  let name = folderName.value;
+  if(!name) return;
+  data[name]={desc:folderDesc.value,files:{}};
+  saveStorage();
+  render();
+}
+
+function render(){
+  folders.innerHTML="";
+  for(let f in data){
+    let div=document.createElement("div");
+    div.className="folder";
+    div.innerHTML=`📂 ${f} <button onclick="openFolder('${f}')">เปิด</button>`;
+    folders.appendChild(div);
+  }
+}
+
+function openFolder(f){
+  currentFolder=f;
+  folders.innerHTML=`<button onclick="addFile()">➕ เพิ่มไฟล์</button>`;
+  for(let file in data[f].files){
+    let div=document.createElement("div");
+    div.className="file";
+    div.innerHTML=`📄 ${file}
+    <span class="menu" onclick="fileMenu('${file}')">⋮</span>`;
+    folders.appendChild(div);
+  }
+}
+
+function addFile(){
+  let name=prompt("ชื่อไฟล์");
+  if(!name) return;
+  data[currentFolder].files[name]="";
+  saveStorage();
+  openFolder(currentFolder);
+}
+
+function fileMenu(file){
+  let act=prompt("1 = เปิดไฟล์\n2 = แก้โค้ด");
+  if(act=="1") openFile(file);
+  if(act=="2") editFile(file);
+}
+
+function editFile(file){
+  currentFile=file;
+  home.classList.add("hidden");
+  editor.classList.remove("hidden");
+  code.value=data[currentFolder].files[file];
+}
+
+function saveFile(){
+  data[currentFolder].files[currentFile]=code.value;
+  saveStorage();
+  alert("เซฟแล้ว (ค้างถาวร)");
+}
+
+function openFile(file){
+  home.classList.add("hidden");
+  viewer.classList.remove("hidden");
+  frame.srcdoc=data[currentFolder].files[file];
+}
+
+function findText(){
+  let t = search.value;
+  if(!t){
+    alert("ยังไม่ได้พิมพ์คำค้น");
+    return;
+  }
+  if(code.value.includes(t)){
+    alert("พบคำที่ค้นหา");
+  }else{
+    alert("ไม่พบ");
+  }
+}
+
+function back(){
+  editor.classList.add("hidden");
+  viewer.classList.add("hidden");
+  home.classList.remove("hidden");
+  render();
+}
+
+render();
+</script>
+
+</body>
+  </html>
