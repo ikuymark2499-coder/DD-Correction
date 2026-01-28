@@ -2,234 +2,847 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Ultimate Mobile Code Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlackHole IDE – Phase 1 Core</title>
 
 <style>
-/* ===== GLOBAL ===== */
-*{box-sizing:border-box}
-body{
-  margin:0;
-  background:#0e0e11;
-  color:#eee;
-  font-family:system-ui,-apple-system,BlinkMacSystemFont;
-}
-button{
-  background:#1e1e26;
-  color:#fff;
-  border:none;
-  padding:12px;
-  border-radius:10px;
-  font-size:16px;
-}
-button:active{opacity:.7}
-.hidden{display:none}
+/* ======================================================
+   BLACKHOLE IDE – PHASE 1 CORE ENGINE
+   Focus: Editor Logic, State, Engine
+   ====================================================== */
 
-/* ===== HEADER ===== */
-header{
-  height:52px;
-  background:#15151a;
+/* ---------- BASE RESET ---------- */
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+
+body{
+  background:#0b0d12;
+  color:#eaeaff;
+  font-family:ui-monospace,Consolas,monospace;
+  height:100vh;
+  overflow:hidden;
+}
+
+/* ---------- LAYOUT ---------- */
+#root{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+}
+
+#topbar{
+  height:44px;
+  background:#121520;
   display:flex;
   align-items:center;
-  justify-content:space-between;
-  padding:0 10px;
-}
-header h1{
-  font-size:16px;
-  margin:0;
-}
-header .menu{
-  font-size:22px;
-}
-
-/* ===== LAYOUT ===== */
-#app{
-  display:flex;
-  height:calc(100vh - 52px);
-}
-#sidebar{
-  width:240px;
-  background:#14141c;
-  border-right:1px solid #222;
-  display:flex;
-  flex-direction:column;
-}
-#main{
-  flex:1;
-  display:flex;
-  flex-direction:column;
-}
-
-/* ===== SIDEBAR ===== */
-.side-header{
-  padding:10px;
+  padding:0 12px;
+  gap:12px;
   border-bottom:1px solid #222;
 }
-.tree{
+
+#topbar b{
+  color:#7c7cff;
+}
+
+#workspace{
   flex:1;
+  display:flex;
+  overflow:hidden;
+}
+
+/* ---------- FILE TREE ---------- */
+#files{
+  width:220px;
+  background:#0f1220;
+  border-right:1px solid #222;
   overflow:auto;
 }
+
+#files h3{
+  font-size:13px;
+  padding:10px;
+  color:#9aa3ff;
+}
+
 .file{
-  padding:10px 14px;
-  border-bottom:1px solid #1f1f28;
+  padding:8px 12px;
+  font-size:13px;
   cursor:pointer;
 }
-.file.active{background:#232336}
 
-/* ===== EDITOR ===== */
-#editor-bar{
+.file.active{
+  background:#1a1f3d;
+  color:#7cffff;
+}
+
+/* ---------- EDITOR ---------- */
+#editorWrap{
+  flex:1;
+  position:relative;
+  background:#0b0d12;
+  overflow:hidden;
+}
+
+#tabbar{
+  height:32px;
   display:flex;
-  gap:6px;
-  padding:6px;
+  background:#11152a;
   border-bottom:1px solid #222;
 }
-#editor{
-  flex:1;
-  display:flex;
+
+.tab{
+  padding:6px 12px;
+  font-size:12px;
+  cursor:pointer;
 }
+
+.tab.active{
+  background:#1a1f3d;
+  color:#7cffff;
+}
+
+/* ---------- CODE AREA ---------- */
+#editor{
+  position:absolute;
+  top:32px;
+  bottom:0;
+  left:0;
+  right:0;
+  display:flex;
+  font-size:14px;
+}
+
+/* line numbers */
+#lineNumbers{
+  width:48px;
+  background:#0e1120;
+  color:#555;
+  text-align:right;
+  padding:8px 6px;
+  overflow:hidden;
+  user-select:none;
+}
+
+/* code surface */
 #code{
   flex:1;
-  background:#0f0f14;
-  color:#f1f1f1;
-  font-family:monospace;
-  font-size:14px;
-  padding:12px;
+  padding:8px 10px;
   outline:none;
-  border:none;
-  resize:none;
+  white-space:pre;
+  overflow:auto;
+  caret-color:#7cffff;
 }
 
-/* ===== PREVIEW ===== */
-#preview{
-  flex:1;
+/* ---------- STATUS ---------- */
+#status{
+  height:26px;
+  background:#11152a;
   border-top:1px solid #222;
-}
-iframe{
-  width:100%;
-  height:100%;
-  border:none;
-  background:#fff;
-}
-
-/* ===== MOBILE ===== */
-@media(max-width:700px){
-  #sidebar{position:absolute;z-index:10;height:100%}
+  font-size:11px;
+  display:flex;
+  align-items:center;
+  padding:0 10px;
+  color:#777;
 }
 </style>
 </head>
 
 <body>
-<header>
-  <h1>⚡ Mobile Code Editor</h1>
-  <div class="menu" onclick="toggleSidebar()">☰</div>
-</header>
+<div id="root">
 
-<div id="app">
-  <aside id="sidebar" class="hidden">
-    <div class="side-header">
-      <button onclick="newFile()">＋ New File</button>
-    </div>
-    <div class="tree" id="fileTree"></div>
-  </aside>
-
-  <div id="main">
-    <div id="editor-bar">
-      <button onclick="run()">▶ Run</button>
-      <button onclick="exportHTML()">⬇ HTML</button>
-      <button onclick="exportZIP()">⬇ ZIP</button>
-    </div>
-
-    <div id="editor">
-      <textarea id="code" spellcheck="false"></textarea>
-    </div>
-
-    <div id="preview">
-      <iframe id="frame"></iframe>
-    </div>
+  <div id="topbar">
+    <b>🕳 BlackHole IDE</b>
+    <span>Phase 1 – Core Engine</span>
   </div>
+
+  <div id="workspace">
+
+    <div id="files">
+      <h3>FILES</h3>
+      <div class="file active" data-file="index.html">index.html</div>
+      <div class="file" data-file="style.css">style.css</div>
+      <div class="file" data-file="script.js">script.js</div>
+    </div>
+
+    <div id="editorWrap">
+      <div id="tabbar">
+        <div class="tab active" id="activeTab">index.html</div>
+      </div>
+
+      <div id="editor">
+        <div id="lineNumbers"></div>
+        <div id="code" contenteditable="true" spellcheck="false"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="status">READY</div>
+
 </div>
 
 <script>
-/* ===== STATE ===== */
-let state = {
+/* ======================================================
+   BLACKHOLE IDE – CORE ENGINE (JS)
+   ====================================================== */
+
+/* ---------- STATE ---------- */
+const State={
   files:{
-    "index.html":"<h1>Hello World</h1>\n<script>console.log('hi')</script>"
+    "index.html":"<!DOCTYPE html>\\n<html>\\n<body>\\n<h1>Hello BlackHole</h1>\\n</body>\\n</html>",
+    "style.css":"body{background:#111;color:#0ff}",
+    "script.js":"console.log('BlackHole')"
   },
-  current:"index.html"
+  currentFile:"index.html",
+  undoStack:[],
+  redoStack:[]
 };
 
-/* ===== LOAD / SAVE ===== */
-function save(){
-  localStorage.setItem("editor_state",JSON.stringify(state));
-}
-function load(){
-  let s = localStorage.getItem("editor_state");
-  if(s) state = JSON.parse(s);
-}
-load();
+/* ---------- ELEMENTS ---------- */
+const codeEl=document.getElementById("code");
+const lineEl=document.getElementById("lineNumbers");
+const statusEl=document.getElementById("status");
 
-/* ===== UI ===== */
-const tree = document.getElementById("fileTree");
-const code = document.getElementById("code");
-const frame = document.getElementById("frame");
-
-function renderTree(){
-  tree.innerHTML="";
-  Object.keys(state.files).forEach(f=>{
-    let div=document.createElement("div");
-    div.className="file"+(f===state.current?" active":"");
-    div.textContent=f;
-    div.onclick=()=>openFile(f);
-    tree.appendChild(div);
+/* ---------- FILE SYSTEM ---------- */
+function loadFile(name){
+  saveSnapshot();
+  State.currentFile=name;
+  codeEl.innerText=
+    localStorage.getItem("bh_"+name) ?? State.files[name];
+  document.getElementById("activeTab").innerText=name;
+  document.querySelectorAll(".file").forEach(f=>{
+    f.classList.toggle("active",f.dataset.file===name);
   });
+  refreshLines();
+  setStatus("OPEN "+name);
 }
 
-function openFile(name){
-  state.current=name;
-  code.value=state.files[name];
-  renderTree();
-  save();
+/* ---------- LINE NUMBERS ---------- */
+function refreshLines(){
+  const count=codeEl.innerText.split("\\n").length;
+  let out=\"\";
+  for(let i=1;i<=count;i++) out+=i+\"<br>\";
+  lineEl.innerHTML=out;
 }
 
-function newFile(){
-  let name=prompt("ชื่อไฟล์","");
-  if(!name) return;
-  state.files[name]="";
-  openFile(name);
+/* ---------- SNAPSHOT ---------- */
+function saveSnapshot(){
+  State.undoStack.push(codeEl.innerText);
+  if(State.undoStack.length>200) State.undoStack.shift();
+  State.redoStack=[];
 }
 
-code.addEventListener("input",()=>{
-  state.files[state.current]=code.value;
-  save();
+/* ---------- UNDO / REDO ---------- */
+function undo(){
+  if(!State.undoStack.length) return;
+  State.redoStack.push(codeEl.innerText);
+  codeEl.innerText=State.undoStack.pop();
+  refreshLines();
+  setStatus(\"UNDO\");
+}
+function redo(){
+  if(!State.redoStack.length) return;
+  State.undoStack.push(codeEl.innerText);
+  codeEl.innerText=State.redoStack.pop();
+  refreshLines();
+  setStatus(\"REDO\");
+}
+
+/* ---------- KEY HANDLER ---------- */
+codeEl.addEventListener(\"keydown\",e=>{
+  if(e.key===\"Tab\"){
+    e.preventDefault();
+    insert(\"  \");
+  }
+  if(e.ctrlKey && e.key===\"z\"){
+    e.preventDefault(); undo();
+  }
+  if(e.ctrlKey && e.key===\"y\"){
+    e.preventDefault(); redo();
+  }
 });
 
-/* ===== RUN PREVIEW ===== */
-function run(){
-  frame.srcdoc = code.value;
+/* ---------- INSERT TEXT ---------- */
+function insert(text){
+  const sel=window.getSelection();
+  if(!sel.rangeCount) return;
+  const range=sel.getRangeAt(0);
+  range.deleteContents();
+  range.insertNode(document.createTextNode(text));
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
-/* ===== EXPORT ===== */
-function exportHTML(){
-  let blob=new Blob([code.value],{type:"text/html"});
-  let a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=state.current;
-  a.click();
+/* ---------- AUTO SAVE ---------- */
+codeEl.addEventListener(\"input\",()=>{
+  localStorage.setItem(
+    \"bh_\"+State.currentFile,
+    codeEl.innerText
+  );
+  refreshLines();
+});
+
+/* ---------- STATUS ---------- */
+function setStatus(t){
+  statusEl.innerText=t;
+  setTimeout(()=>statusEl.innerText=\"READY\",1200);
 }
 
-function exportZIP(){
-  alert("เวอร์ชันถัดไปจะรวม zip จริง (ตัวนี้โครงพร้อม)");
-}
+/* ---------- FILE CLICK ---------- */
+document.querySelectorAll(\".file\").forEach(f=>{
+  f.onclick=()=>loadFile(f.dataset.file);
+});
 
-/* ===== SIDEBAR ===== */
-function toggleSidebar(){
-  document.getElementById("sidebar").classList.toggle("hidden");
-}
-
-/* ===== INIT ===== */
-openFile(state.current);
-renderTree();
-run();
+/* ---------- INIT ---------- */
+loadFile(\"index.html\");
 </script>
+  <!-- =========================================================
+ PHASE 2 : ADVANCED MOBILE UI + INTERACTION LAYER
+ ต่อจาก Phase 1 ได้เลย ห้ามลบของเดิม
+========================================================= -->
+
+<style>
+/* =========================
+   GLOBAL THEME OVERRIDE
+========================= */
+:root {
+  --bg-main: #0b0b0f;
+  --bg-panel: #13131a;
+  --accent-red: #c4002f;
+  --accent-purple: #7b2cff;
+  --accent-pink: #ff2f92;
+  --text-main: #eaeaf0;
+  --text-dim: #9a9aa3;
+  --glow-red: 0 0 12px rgba(196,0,47,.6);
+  --glow-purple: 0 0 14px rgba(123,44,255,.6);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: radial-gradient(circle at top, #1a0f1f, #000);
+  color: var(--text-main);
+}
+
+/* =========================
+   APP CONTAINER
+========================= */
+.app-shell {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #0a0a12, #000);
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* =========================
+   HEADER HUD
+========================= */
+.hud {
+  position: sticky;
+  top: 0;
+  z-index: 99;
+  background: rgba(10,10,18,.85);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.hud-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.hud-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-shadow: var(--glow-purple);
+}
+
+.hud-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-red), var(--accent-purple));
+  box-shadow: var(--glow-red);
+}
+
+/* =========================
+   MAIN CARD SYSTEM
+========================= */
+.card {
+  background: linear-gradient(160deg, #14141f, #0a0a12);
+  border-radius: 18px;
+  padding: 18px;
+  margin: 16px;
+  box-shadow:
+    0 12px 30px rgba(0,0,0,.7),
+    inset 0 0 0 1px rgba(255,255,255,.04);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(123,44,255,.08),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity .4s;
+}
+
+.card:active::after {
+  opacity: 1;
+}
+
+/* =========================
+   SECTION TITLE
+========================= */
+.section-title {
+  font-size: 14px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+/* =========================
+   ACTION GRID
+========================= */
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.action-btn {
+  background: linear-gradient(160deg, #1a1a28, #0c0c14);
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04),
+    0 10px 24px rgba(0,0,0,.6);
+}
+
+.action-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top,
+    rgba(255,47,146,.35),
+    transparent 70%);
+  opacity: 0;
+  transition: .3s;
+}
+
+.action-btn:active::before {
+  opacity: 1;
+}
+
+.action-btn span {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+  color: var(--text-dim);
+}
+
+/* =========================
+   SCROLLABLE LIST
+========================= */
+.scroll-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.scroll-item {
+  min-width: 120px;
+  background: linear-gradient(160deg, #1a0f1f, #08080f);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--glow-purple);
+  font-size: 13px;
+}
+
+/* =========================
+   BOTTOM NAV
+========================= */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: rgba(12,12,20,.9);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+
+.bottom-nav-inner {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0;
+}
+
+.nav-item {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.nav-item.active {
+  color: var(--accent-pink);
+  text-shadow: var(--glow-red);
+}
+
+/* =========================
+   SAFE SPACE FOR NAV
+========================= */
+.safe-space {
+  height: 80px;
+}
+</style>
+
+<div class="app-shell">
+
+  <div class="hud">
+    <div class="hud-inner">
+      <div class="hud-title">ROV DRAFT AI</div>
+      <div class="hud-badge">PHASE 2</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">QUICK ACTION</div>
+    <div class="action-grid">
+      <div class="action-btn">DRAFT<span>Smart Pick</span></div>
+      <div class="action-btn">COUNTER<span>Hard Read</span></div>
+      <div class="action-btn">META<span>Tier List</span></div>
+      <div class="action-btn">PROFILE<span>Hero Data</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">RECENT ANALYSIS</div>
+    <div class="scroll-list">
+      <div class="scroll-item">Murad vs Qi</div>
+      <div class="scroll-item">Florentino Lane</div>
+      <div class="scroll-item">Meta Jungle</div>
+      <div class="scroll-item">Late Game Comp</div>
+    </div>
+  </div>
+
+  <div class="safe-space"></div>
+
+  <div class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <div class="nav-item active">HOME</div>
+      <div class="nav-item">DRAFT</div>
+      <div class="nav-item">META</div>
+      <div class="nav-item">SETTINGS</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* =========================
+   PHASE 2 INTERACTION LOGIC
+========================= */
+document.querySelectorAll('.action-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.animate(
+      [
+        { transform: 'scale(1)' },
+        { transform: 'scale(.95)' },
+        { transform: 'scale(1)' }
+      ],
+      { duration: 180, easing: 'ease-out' }
+    );
+  });
+});
+</script>
+
+<!-- =======================
+ END OF PHASE 2
+ PHASE 3 จะเริ่มต่อจากนี้
+======================== -->
+  <!-- ============================= -->
+<!-- PHASE 3 : ADVANCED IDE SYSTEM -->
+<!-- ============================= -->
+
+<script>
+/* =====================================================
+   SYSTEM BUS (Event Hub)
+   ===================================================== */
+const Bus = {
+  events: {},
+  on(evt, fn) {
+    (this.events[evt] ||= []).push(fn);
+  },
+  emit(evt, data) {
+    (this.events[evt] || []).forEach(fn => fn(data));
+  }
+};
+
+/* =====================================================
+   COMMAND PALETTE (Ctrl + K)
+   ===================================================== */
+const commandPalette = {
+  commands: [],
+  el: null,
+  init() {
+    this.el = document.createElement("div");
+    this.el.id = "cmdPalette";
+    this.el.innerHTML = `
+      <input placeholder="พิมพ์คำสั่ง..." />
+      <ul></ul>
+    `;
+    document.body.appendChild(this.el);
+
+    const input = this.el.querySelector("input");
+    input.oninput = () => this.render(input.value);
+    input.onkeydown = e => {
+      if (e.key === "Escape") this.hide();
+      if (e.key === "Enter") this.exec();
+    };
+
+    document.addEventListener("keydown", e => {
+      if (e.ctrlKey && e.key === "k") {
+        e.preventDefault();
+        this.show();
+      }
+    });
+  },
+  register(name, fn) {
+    this.commands.push({ name, fn });
+  },
+  show() {
+    this.el.style.display = "block";
+    this.el.querySelector("input").focus();
+    this.render("");
+  },
+  hide() {
+    this.el.style.display = "none";
+  },
+  render(q) {
+    const ul = this.el.querySelector("ul");
+    ul.innerHTML = "";
+    this.commands
+      .filter(c => c.name.includes(q))
+      .forEach(c => {
+        const li = document.createElement("li");
+        li.textContent = c.name;
+        li.onclick = () => { c.fn(); this.hide(); };
+        ul.appendChild(li);
+      });
+  },
+  exec() {
+    const first = this.el.querySelector("li");
+    if (first) first.click();
+  }
+};
+
+commandPalette.init();
+
+/* =====================================================
+   SNAPSHOT / HISTORY SYSTEM
+   ===================================================== */
+const History = {
+  stack: [],
+  pointer: -1,
+  push(state) {
+    this.stack = this.stack.slice(0, this.pointer + 1);
+    this.stack.push(JSON.stringify(state));
+    this.pointer++;
+  },
+  undo() {
+    if (this.pointer > 0) {
+      this.pointer--;
+      return JSON.parse(this.stack[this.pointer]);
+    }
+  },
+  redo() {
+    if (this.pointer < this.stack.length - 1) {
+      this.pointer++;
+      return JSON.parse(this.stack[this.pointer]);
+    }
+  }
+};
+
+/* =====================================================
+   PROJECT MANAGER (Virtual Files)
+   ===================================================== */
+const Project = {
+  files: {},
+  active: null,
+  create(name, content="") {
+    this.files[name] = content;
+    this.active = name;
+    this.save();
+  },
+  open(name) {
+    this.active = name;
+    Bus.emit("file:open", this.files[name]);
+  },
+  update(content) {
+    if (this.active) {
+      this.files[this.active] = content;
+      this.save();
+    }
+  },
+  save() {
+    localStorage.setItem("bh-project", JSON.stringify(this.files));
+  },
+  load() {
+    const data = localStorage.getItem("bh-project");
+    if (data) this.files = JSON.parse(data);
+  }
+};
+Project.load();
+
+/* =====================================================
+   PLUGIN SYSTEM
+   ===================================================== */
+const Plugins = {
+  list: {},
+  register(name, plugin) {
+    this.list[name] = { plugin, enabled: false };
+  },
+  enable(name) {
+    const p = this.list[name];
+    if (p && !p.enabled) {
+      p.plugin.init?.();
+      p.enabled = true;
+    }
+  },
+  disable(name) {
+    const p = this.list[name];
+    if (p && p.enabled) {
+      p.plugin.destroy?.();
+      p.enabled = false;
+    }
+  }
+};
+
+/* =====================================================
+   RUNTIME GUARD (Loop / Crash protection)
+   ===================================================== */
+function safeRun(code, iframe) {
+  try {
+    const blob = new Blob([`
+      let __guard = true;
+      setTimeout(()=>__guard=false,3000);
+      while(__guard){}
+    `], {type:"text/javascript"});
+    iframe.src = URL.createObjectURL(blob);
+  } catch(e) {
+    console.error("Runtime Error", e);
+  }
+}
+
+/* =====================================================
+   SEARCH / REPLACE
+   ===================================================== */
+function searchReplace(text, find, replace) {
+  return text.split(find).join(replace);
+}
+
+/* =====================================================
+   PERFORMANCE MONITOR
+   ===================================================== */
+const Perf = {
+  fps: 0,
+  last: performance.now(),
+  tick() {
+    const now = performance.now();
+    this.fps = Math.round(1000 / (now - this.last));
+    this.last = now;
+    requestAnimationFrame(()=>this.tick());
+  }
+};
+Perf.tick();
+
+/* =====================================================
+   REGISTER COMMANDS
+   ===================================================== */
+commandPalette.register("Undo", () => {
+  const state = History.undo();
+  if (state) Bus.emit("state:restore", state);
+});
+
+commandPalette.register("Redo", () => {
+  const state = History.redo();
+  if (state) Bus.emit("state:restore", state);
+});
+
+commandPalette.register("New File", () => {
+  const name = prompt("ชื่อไฟล์");
+  if (name) Project.create(name, "");
+});
+
+commandPalette.register("Toggle Dark Mode", () => {
+  document.body.classList.toggle("dark");
+});
+
+/* =====================================================
+   BASIC STYLES FOR PHASE 3
+   ===================================================== */
+</script>
+
+<style>
+#cmdPalette{
+  position:fixed;
+  top:20%;
+  left:50%;
+  transform:translateX(-50%);
+  width:90%;
+  max-width:420px;
+  background:#0b0f1a;
+  border-radius:14px;
+  display:none;
+  z-index:9999;
+}
+#cmdPalette input{
+  width:100%;
+  padding:14px;
+  background:#111;
+  border:none;
+  color:#fff;
+  outline:none;
+}
+#cmdPalette ul{
+  list-style:none;
+  max-height:300px;
+  overflow:auto;
+}
+#cmdPalette li{
+  padding:12px;
+  border-top:1px solid #222;
+  cursor:pointer;
+}
+#cmdPalette li:hover{
+  background:#1f2a44;
+}
+</style>
+
 </body>
-</html>
+  </html>
