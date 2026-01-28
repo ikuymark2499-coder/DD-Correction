@@ -2,135 +2,234 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>My Mobile Code Editor</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ultimate Mobile Code Editor</title>
+
 <style>
-body{margin:0;font-family:sans-serif;background:#111;color:#fff}
-header{padding:10px;background:#1e1e1e;text-align:center}
-button{background:#444;color:#fff;border:none;padding:6px 10px;border-radius:5px;margin:4px 0}
-input,textarea{width:100%;background:#222;color:#fff;border:1px solid #333;padding:6px;margin:4px 0}
-.folder,.file{padding:6px;border-bottom:1px solid #333}
-.menu{float:right;cursor:pointer}
+/* ===== GLOBAL ===== */
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#0e0e11;
+  color:#eee;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont;
+}
+button{
+  background:#1e1e26;
+  color:#fff;
+  border:none;
+  padding:12px;
+  border-radius:10px;
+  font-size:16px;
+}
+button:active{opacity:.7}
 .hidden{display:none}
+
+/* ===== HEADER ===== */
+header{
+  height:52px;
+  background:#15151a;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 10px;
+}
+header h1{
+  font-size:16px;
+  margin:0;
+}
+header .menu{
+  font-size:22px;
+}
+
+/* ===== LAYOUT ===== */
+#app{
+  display:flex;
+  height:calc(100vh - 52px);
+}
+#sidebar{
+  width:240px;
+  background:#14141c;
+  border-right:1px solid #222;
+  display:flex;
+  flex-direction:column;
+}
+#main{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+
+/* ===== SIDEBAR ===== */
+.side-header{
+  padding:10px;
+  border-bottom:1px solid #222;
+}
+.tree{
+  flex:1;
+  overflow:auto;
+}
+.file{
+  padding:10px 14px;
+  border-bottom:1px solid #1f1f28;
+  cursor:pointer;
+}
+.file.active{background:#232336}
+
+/* ===== EDITOR ===== */
+#editor-bar{
+  display:flex;
+  gap:6px;
+  padding:6px;
+  border-bottom:1px solid #222;
+}
+#editor{
+  flex:1;
+  display:flex;
+}
+#code{
+  flex:1;
+  background:#0f0f14;
+  color:#f1f1f1;
+  font-family:monospace;
+  font-size:14px;
+  padding:12px;
+  outline:none;
+  border:none;
+  resize:none;
+}
+
+/* ===== PREVIEW ===== */
+#preview{
+  flex:1;
+  border-top:1px solid #222;
+}
+iframe{
+  width:100%;
+  height:100%;
+  border:none;
+  background:#fff;
+}
+
+/* ===== MOBILE ===== */
+@media(max-width:700px){
+  #sidebar{position:absolute;z-index:10;height:100%}
+}
 </style>
 </head>
+
 <body>
+<header>
+  <h1>⚡ Mobile Code Editor</h1>
+  <div class="menu" onclick="toggleSidebar()">☰</div>
+</header>
 
-<header>📁 My Code Editor</header>
+<div id="app">
+  <aside id="sidebar" class="hidden">
+    <div class="side-header">
+      <button onclick="newFile()">＋ New File</button>
+    </div>
+    <div class="tree" id="fileTree"></div>
+  </aside>
 
-<div id="home">
-  <input id="folderName" placeholder="ชื่อโฟลเดอร์">
-  <textarea id="folderDesc" placeholder="รายละเอียด"></textarea>
-  <button onclick="createFolder()">สร้างโฟลเดอร์</button>
-  <div id="folders"></div>
-</div>
+  <div id="main">
+    <div id="editor-bar">
+      <button onclick="run()">▶ Run</button>
+      <button onclick="exportHTML()">⬇ HTML</button>
+      <button onclick="exportZIP()">⬇ ZIP</button>
+    </div>
 
-<div id="editor" class="hidden">
-  <button onclick="back()">⬅ กลับ</button>
-  <input id="search" placeholder="🔍 ค้นหาโค้ด">
-  <button onclick="findText()">ค้นหา</button>
-  <textarea id="code" rows="16"></textarea>
-  <button onclick="saveFile()">💾 เซฟไฟล์</button>
-</div>
+    <div id="editor">
+      <textarea id="code" spellcheck="false"></textarea>
+    </div>
 
-<div id="viewer" class="hidden">
-  <button onclick="back()">⬅ กลับ</button>
-  <iframe id="frame" style="width:100%;height:80vh;border:none"></iframe>
+    <div id="preview">
+      <iframe id="frame"></iframe>
+    </div>
+  </div>
 </div>
 
 <script>
-let data = JSON.parse(localStorage.getItem("myEditorData")) || {};
-let currentFolder = "";
-let currentFile = "";
+/* ===== STATE ===== */
+let state = {
+  files:{
+    "index.html":"<h1>Hello World</h1>\n<script>console.log('hi')</script>"
+  },
+  current:"index.html"
+};
 
-function saveStorage(){
-  localStorage.setItem("myEditorData", JSON.stringify(data));
+/* ===== LOAD / SAVE ===== */
+function save(){
+  localStorage.setItem("editor_state",JSON.stringify(state));
 }
-
-function createFolder(){
-  let name = folderName.value;
-  if(!name) return;
-  data[name]={desc:folderDesc.value,files:{}};
-  saveStorage();
-  render();
+function load(){
+  let s = localStorage.getItem("editor_state");
+  if(s) state = JSON.parse(s);
 }
+load();
 
-function render(){
-  folders.innerHTML="";
-  for(let f in data){
+/* ===== UI ===== */
+const tree = document.getElementById("fileTree");
+const code = document.getElementById("code");
+const frame = document.getElementById("frame");
+
+function renderTree(){
+  tree.innerHTML="";
+  Object.keys(state.files).forEach(f=>{
     let div=document.createElement("div");
-    div.className="folder";
-    div.innerHTML=`📂 ${f} <button onclick="openFolder('${f}')">เปิด</button>`;
-    folders.appendChild(div);
-  }
+    div.className="file"+(f===state.current?" active":"");
+    div.textContent=f;
+    div.onclick=()=>openFile(f);
+    tree.appendChild(div);
+  });
 }
 
-function openFolder(f){
-  currentFolder=f;
-  folders.innerHTML=`<button onclick="addFile()">➕ เพิ่มไฟล์</button>`;
-  for(let file in data[f].files){
-    let div=document.createElement("div");
-    div.className="file";
-    div.innerHTML=`📄 ${file}
-    <span class="menu" onclick="fileMenu('${file}')">⋮</span>`;
-    folders.appendChild(div);
-  }
+function openFile(name){
+  state.current=name;
+  code.value=state.files[name];
+  renderTree();
+  save();
 }
 
-function addFile(){
-  let name=prompt("ชื่อไฟล์");
+function newFile(){
+  let name=prompt("ชื่อไฟล์","");
   if(!name) return;
-  data[currentFolder].files[name]="";
-  saveStorage();
-  openFolder(currentFolder);
+  state.files[name]="";
+  openFile(name);
 }
 
-function fileMenu(file){
-  let act=prompt("1 = เปิดไฟล์\n2 = แก้โค้ด");
-  if(act=="1") openFile(file);
-  if(act=="2") editFile(file);
+code.addEventListener("input",()=>{
+  state.files[state.current]=code.value;
+  save();
+});
+
+/* ===== RUN PREVIEW ===== */
+function run(){
+  frame.srcdoc = code.value;
 }
 
-function editFile(file){
-  currentFile=file;
-  home.classList.add("hidden");
-  editor.classList.remove("hidden");
-  code.value=data[currentFolder].files[file];
+/* ===== EXPORT ===== */
+function exportHTML(){
+  let blob=new Blob([code.value],{type:"text/html"});
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=state.current;
+  a.click();
 }
 
-function saveFile(){
-  data[currentFolder].files[currentFile]=code.value;
-  saveStorage();
-  alert("เซฟแล้ว (ค้างถาวร)");
+function exportZIP(){
+  alert("เวอร์ชันถัดไปจะรวม zip จริง (ตัวนี้โครงพร้อม)");
 }
 
-function openFile(file){
-  home.classList.add("hidden");
-  viewer.classList.remove("hidden");
-  frame.srcdoc=data[currentFolder].files[file];
+/* ===== SIDEBAR ===== */
+function toggleSidebar(){
+  document.getElementById("sidebar").classList.toggle("hidden");
 }
 
-function findText(){
-  let t = search.value;
-  if(!t){
-    alert("ยังไม่ได้พิมพ์คำค้น");
-    return;
-  }
-  if(code.value.includes(t)){
-    alert("พบคำที่ค้นหา");
-  }else{
-    alert("ไม่พบ");
-  }
-}
-
-function back(){
-  editor.classList.add("hidden");
-  viewer.classList.add("hidden");
-  home.classList.remove("hidden");
-  render();
-}
-
-render();
+/* ===== INIT ===== */
+openFile(state.current);
+renderTree();
+run();
 </script>
-
 </body>
-  </html>
+</html>
